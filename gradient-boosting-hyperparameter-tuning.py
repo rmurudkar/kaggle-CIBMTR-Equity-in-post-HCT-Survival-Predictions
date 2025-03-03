@@ -108,8 +108,8 @@ def evaluate_model(model, X, y):
     event = y['event']
     time = y['time']
     
-    # Calculate concordance index
-    c_index, _, _, _, _ = concordance_index_censored(event, time, -prediction)
+    # Calculate concordance index (without negating prediction)
+    c_index, _, _, _, _ = concordance_index_censored(event, time, prediction)
     
     return c_index
 
@@ -147,7 +147,8 @@ def hyperparameter_optimization(X_train, X_val, y_train, y_val, feature_names, n
     param_names = ['n_estimators', 'learning_rate', 'max_depth', 'min_samples_split', 
                    'subsample', 'max_features', 'n_iter_no_change', 'validation_fraction']
     
-    # Objective function to minimize (negative c-index)
+    # Objective function to maximize c-index
+    # (skopt minimizes by default, so we return negative c-index)
     @use_named_args(space)
     def objective(n_estimators, learning_rate, max_depth, min_samples_split, 
                   subsample, max_features, n_iter_no_change, validation_fraction):
@@ -192,6 +193,7 @@ def hyperparameter_optimization(X_train, X_val, y_train, y_val, feature_names, n
         for i, name in enumerate(param_names):
             current_params[name] = res.x_iters[-1][i]
         
+        # Convert from minimization to maximization by negating
         current_c_index = -res.func_vals[-1]
         best_c_index = -res.fun
         
@@ -331,6 +333,7 @@ def visualize_results(optimization_result, param_names, best_model, feature_name
             for j, cat in enumerate(categories):
                 idx = [i for i, val in enumerate(cat_indices) if val == j]
                 if idx:
+                    # Convert back to c-index values by negating
                     ax.scatter([j] * len(idx), [-y[i] for i in idx], alpha=0.6)
             
             # Create display labels for categories (convert None to "None" for display)
@@ -338,7 +341,8 @@ def visualize_results(optimization_result, param_names, best_model, feature_name
             ax.set_xticks(range(len(categories)))
             ax.set_xticklabels(display_categories)
         else:
-            ax.scatter(x, [-yi for yi in y], alpha=0.6)
+                            # Convert back to c-index values by negating
+                ax.scatter(x, [-yi for yi in y], alpha=0.6)
         
         ax.set_xlabel(name)
         ax.set_ylabel('C-index')
